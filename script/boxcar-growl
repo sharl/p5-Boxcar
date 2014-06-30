@@ -1,0 +1,101 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use File::Basename;
+use Config::Tiny;
+use Boxcar 'notify';
+use Getopt::Long;
+use Pod::Usage;
+
+my $prog = basename($0);
+my $conf = $ENV{HOME}.'/.'.$prog;
+(my $source = $prog) =~ s/[_-]/ /g;
+my $r = GetOptions(
+    'help'    => \my $help,
+    'sound=s' => \my $sound,
+) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(2) if $#ARGV < 0;
+
+=head1 NAME
+
+boxcar-growl - send notification to Boxcar
+
+=head1 SYNOPSIS
+
+boxcar-growl [-s|--sound <sound name>] <title> [message]
+
+    $ boxcar-growl test "push to boxcar 2 by boxcar-growl" --sound light
+    $ echo foo bar | boxcar-growl qux
+    $ boxcar-growl "from stdin"
+    foo
+    bar
+    qux
+    ^D
+
+=head1 OPTIONS
+
+=over
+
+=item -s|--sound B<sound>
+
+specify sound name
+
+sound name list:
+
+   https://boxcar.uservoice.com/knowledgebase/articles/306788-how-to-send-your-boxcar-account-a-notification
+
+=back
+
+=head1 SETTINGS
+
+=head2 Install Boxcar 2 to your device
+
+L<http://boxcar.io/client>
+
+=head2 get "ACCESS TOKEN"
+
+L<https://boxcar.uservoice.com/knowledgebase/articles/314474-how-to-get-my-boxcar-access-token>
+
+=head2 Write "ACCESS TOKEN" to ~/.boxcar-growl
+
+token = xxxxxxxxxxxxxxxxxx
+
+=head1 Troubleshooting
+
+If you get the following error when running the script:
+
+        "can't verify ssl peers without knowing which certificate authorities to trust"
+
+Then you need to install and/or update your LWP::UserAgent and Mozilla::CA perl libraries[1].
+You can do this as follows:
+
+     $ cpanm LWP::UserAgent Mozilla::CA
+
+[1] See the following post for details: http://www.perlmonks.org/?node_id=892166
+
+=cut
+
+my $title = shift @ARGV;
+my $message = join(' ', @ARGV);
+if (! $message) {
+    my @message = <STDIN>;
+    $message = join('', @message);
+}
+my $ini = Config::Tiny->read($conf) || die Config::Tiny->errstr;
+
+my %formdata = (
+    user_credentials => $ini->{_}{token},
+    'notification[title]' => $title,
+    'notification[long_message]' => $message,
+    'notification[sound]' => $sound || 'clanging',
+    'notification[source_name]' => $source,
+    );
+
+my $res = Boxcar->notify($ini->{_}{token},
+			 title => $title,
+			 message => $message,
+			 sound => $sound || 'clanging',
+			 source => $source);
+print $res."\n" if $res;
